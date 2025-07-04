@@ -1,0 +1,62 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Execute deployment
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+          if [ -d "${{ secrets.REPO_PATH }}/.git" ]; then
+              cd "${{ secrets.REPO_PATH }}"
+              git fetch origin
+              git reset --hard origin/main
+          else
+              git clone https://github.com/${{ secrets.REPO_FULL_NAME }}.git "${{ secrets.REPO_PATH }}"
+              cd "${{ secrets.REPO_PATH }}"
+          fi
+
+          npm ci --no-audit --prefer-offline
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL}}" > .env
+          echo "PORT=${{ secrets.APP_PORT}}" >> .env
+          npm run build
+
+          # PM2 deployment
+          pm2 delete "${{ secrets.REPO_NAME }}" || true
+          NODE_ENV=production pm2 start "npm run start:prod" --name "${{ secrets.REPO_NAME }}"
+          pm2 save
+          pm2 startup | grep -v "\[PM2\]" | bash
+          EOF
+      - name: Verify deployment
+        run: |
+          MAX_RETRIES=5
+          RETRY_DELAY=10
+          attempt=1
+
+          until curl -sSf -o /dev/null -w "%{http_code}" "${{ secrets.PRODUCTION_URL }}" | grep -q "200"; do
+            if [ $attempt -eq $MAX_RETRIES ]; then
+              echo "Deployment verification failed after $MAX_RETRIES attempts!"
+              exit 1
+            fi
+
+            echo "Attempt $attempt failed. Retrying in $RETRY_DELAY seconds..."
+            sleep $RETRY_DELAY
+            attempt=$((attempt+1))
+          done
+
+          echo "Deployment verification passed successfully!"
