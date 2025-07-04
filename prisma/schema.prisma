@@ -6,4 +6,30 @@ generator client {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+model Users {
+  id           Int        @id @default(autoincrement())
+  username     String     @unique @db.VarChar(128)
+  passwordHash String     @db.VarChar(128)
+  role         UserRole   @default(USER)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now()) @db.DateTime(0)
+  lastOnlineAt  DateTime? @db.DateTime(0)
+
+  @@index([status], name: "user_status_idx")
+  @@index([role], name: "user_role_idx")
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+  ROOT
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
 }
