@@ -8,7 +8,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      SHADOW_DATABSE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
+      SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
@@ -27,7 +27,7 @@ jobs:
       - name: Apply database migrations
         run: npx prisma migrate deploy
         env:
-          SHADOW_DATABSE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
+          SHADOW_DATABASE_URL: ${{ secrets.SHADOW_DATABASE_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
       
       - name: Generate Prisma Client
